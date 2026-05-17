@@ -1,0 +1,45 @@
+# Environment variables (contain API keys — never commit)
+.env
+.env.local
+.env.*.local
+
+# SQLite database (contains audit data)
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploaded APK files
+backend/uploads/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs
+*.log
+uvicorn.log
+
+# Claude Code local settings
+.claude/settings.local.json
