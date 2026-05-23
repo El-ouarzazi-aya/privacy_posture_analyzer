@@ -15,6 +15,7 @@ Privacy Posture Analyzer is an open-source web platform that audits Android APK 
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Running the Application](#running-the-application)
+- [Running with Docker](#running-with-docker)
 - [Usage Guide](#usage-guide)
 - [API Reference](#api-reference)
 - [Running Tests](#running-tests)
@@ -56,6 +57,19 @@ The system combines three complementary analysis layers:
 - Hybrid privacy scoring: rule-based penalties combined with AI contextual scoring
 - Sector-specific GDPR compliance checklists: Health (GDPR+HIPAA), Education (GDPR+COPPA), E-commerce (GDPR+PCI-DSS), Gaming (GDPR+COPPA), General (GDPR)
 - Each checklist item is mapped to a real GDPR article with PASS / FAIL / REVIEW status
+  
+**OWASP Mobile Top 10 (2024) Alignment**
+- Maps detected permissions and SDKs against the OWASP Mobile Top 10
+  (2024) security categories
+- Six categories currently covered:
+  - M1 — Improper Credential Usage (`GET_ACCOUNTS`)
+  - M2 — Inadequate Supply Chain Security (Facebook SDK, Firebase, Crashlytics)
+  - M5 — Insecure Communication (`INTERNET`, `ACCESS_WIFI_STATE`, `NFC`)
+  - M6 — Inadequate Privacy Controls (`CAMERA`, `ACCESS_FINE_LOCATION`, `BLUETOOTH_SCAN`)
+  - M8 — Security Misconfiguration (`BLUETOOTH_CONNECT`, exported components)
+  - M9 — Insecure Data Storage (`READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`)
+- Findings displayed per category with the contributing permissions
+  and SDK signatures listed inline
 
 **Privacy Score**
 - Composite score from 0 to 100 using the formula:
@@ -186,7 +200,40 @@ Once running, the following URLs are available:
 | http://localhost:8000/redoc | ReDoc API documentation |
 
 ---
+## Running with Docker
 
+The fastest way to run the platform is with Docker Compose, which
+requires no manual dependency installation.
+
+**Prerequisites:** Docker and Docker Compose installed on your machine.
+
+**Step 1 — Set your API key**
+
+Create `backend/.env`:
+```bash
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+**Step 2 — Build and start**
+
+```bash
+docker-compose up
+```
+
+The web interface will be available at http://localhost:8000/app.
+
+To stop the application:
+```bash
+docker-compose down
+```
+
+To rebuild after code changes:
+```bash
+docker-compose up --build
+```
+
+> The `uploads/` directory and SQLite database are persisted via
+> Docker volumes and survive container restarts.
 ## Usage Guide
 
 **Analyzing an APK**
