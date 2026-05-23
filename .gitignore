@@ -1,0 +1,21 @@
+# Claude settings
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment & secrets
+backend/.env
+*.env
+
+# Database & uploads
+backend/privacy_analyzer.db
+backend/uploads/
+
+# Unused source archives
+pdfforge1_source/
+pdfforge1_source.zip
+theoretical_summary.docx

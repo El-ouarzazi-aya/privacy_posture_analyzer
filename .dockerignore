@@ -1,0 +1,10 @@
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+backend/tests/
+.git
+.gitignore
+pdfforge1_source/
+pdfforge1_source.zip
+theoretical_summary.docx

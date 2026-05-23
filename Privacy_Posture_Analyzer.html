@@ -1,0 +1,2071 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Posture Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #FAFAF8;
+    --surface: #FFFFFF;
+    --surface-2: #F4F2EE;
+    --border: #E5E2DC;
+    --text: #1A1A18;
+    --muted: #6A6A66;
+    --olive: #4A5E2A;
+    --stone: #7A7060;
+    --terracotta: #B05A38;
+    --green: #4A5E2A;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* ---------- typographic primitives ---------- */
+  .display { font-family: 'Playfair Display', serif; font-weight: 500; letter-spacing: -0.02em; line-height: 1.05; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-weight: 400; }
+  .label {
+    font-family: 'Inter', sans-serif;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* ---------- 3D canvas background ---------- */
+  #bg-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    transition: opacity 800ms ease;
+  }
+  body.bg-dim #bg-canvas { opacity: 0.18; }
+  body.bg-hide #bg-canvas { opacity: 0; }
+
+  /* ---------- shell ---------- */
+  .shell {
+    position: relative;
+    z-index: 10;
+    min-height: 100vh;
+    padding-bottom: 80px; /* room for export bar */
+  }
+
+  /* ---------- top nav ---------- */
+  .topnav {
+    position: relative;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 56px;
+    border-bottom: 1px solid transparent;
+  }
+  .topnav .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  .topnav .brand .mark {
+    font-family: 'Playfair Display', serif;
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+  }
+  .topnav .brand .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  .topnav nav {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+  }
+  .topnav nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 200ms;
+  }
+  .topnav nav a:hover, .topnav nav a.active { color: var(--text); }
+
+  /* ---------- screens ---------- */
+  .screen { display: none; }
+  .screen.active { display: block; animation: fade 500ms ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- UPLOAD ---------- */
+  .upload-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 80px 32px 40px;
+    text-align: center;
+  }
+  .upload-eyebrow {
+    margin-bottom: 28px;
+  }
+  .upload-headline {
+    font-size: 56px;
+    margin-bottom: 18px;
+    text-wrap: balance;
+  }
+  .upload-sub {
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 460px;
+    margin: 0 auto 56px;
+    line-height: 1.7;
+  }
+  .dropzone {
+    border: 1px solid var(--border);
+    padding: 72px 32px;
+    cursor: pointer;
+    transition: border-color 220ms, background 220ms;
+    background: rgba(244, 242, 238, 0.75);
+    backdrop-filter: blur(2px);
+  }
+  .dropzone:hover, .dropzone.dragging { border-color: var(--olive); }
+  .dropzone .label { margin-bottom: 18px; }
+  .dropzone .dz-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 22px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .dropzone .dz-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .pkg-input-wrap {
+    margin-top: 32px;
+    text-align: left;
+  }
+  .pkg-input-wrap .label { margin-bottom: 10px; display: block; }
+  .pkg-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 200ms;
+  }
+  .pkg-input::placeholder { color: var(--muted); }
+  .pkg-input:focus { border-bottom-color: var(--olive); }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: 64px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-row .stat {
+    padding: 22px 16px;
+    border-right: 1px solid var(--border);
+    text-align: left;
+  }
+  .stat-row .stat:last-child { border-right: none; }
+  .stat .num {
+    font-family: 'Playfair Display', serif;
+    font-weight: 500;
+    font-size: 28px;
+    color: var(--olive);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .stat .label { color: var(--muted); }
+
+  /* ---------- LOADING ---------- */
+  .loading-wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 140px 32px;
+  }
+  .error-box {
+    margin-top: 40px;
+    border: 1px solid var(--terracotta);
+    padding: 20px 24px;
+    background: rgba(192, 122, 90, 0.07);
+  }
+  .error-box .err-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--terracotta);
+    margin-bottom: 8px;
+  }
+  .error-box .err-msg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: var(--text);
+    line-height: 1.65;
+    word-break: break-all;
+  }
+  .error-box .err-back {
+    margin-top: 16px;
+    background: transparent;
+    border: 1px solid var(--terracotta);
+    color: var(--terracotta);
+    padding: 8px 18px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .error-box .err-back:hover { background: rgba(192,122,90,0.08); }
+  .progress-line {
+    position: fixed;
+    top: 0; left: 0;
+    height: 1px;
+    background: var(--olive);
+    width: 0;
+    z-index: 30;
+    transition: width 200ms linear;
+  }
+  .loading-eyebrow { margin-bottom: 24px; }
+  .loading-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 32px;
+    color: var(--text);
+    margin-bottom: 64px;
+  }
+  .log {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 2;
+  }
+  .log .line { display: flex; gap: 16px; align-items: baseline; }
+  .log .line .marker { width: 24px; color: var(--muted); }
+  .log .line.done { color: var(--olive); }
+  .log .line.done .marker { color: var(--olive); }
+  .log .line.current { color: var(--text); }
+  .log .line.current .marker { color: var(--text); }
+  .log .line.pending { color: var(--border); }
+  .log .line.pending .marker { color: var(--border); }
+  .log .line.current::after {
+    content: '';
+    display: inline-block;
+    width: 7px; height: 12px;
+    background: var(--text);
+    margin-left: 6px;
+    animation: blink 900ms steps(2) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ---------- DASHBOARD ---------- */
+  .dash {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 56px 0;
+  }
+  .dash-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 48px;
+    align-items: start;
+    padding: 32px 0 40px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dash-header .app-name {
+    font-size: 64px;
+    margin-bottom: 6px;
+  }
+  .dash-header .pkg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 28px;
+  }
+  .meta-row {
+    display: flex;
+    gap: 56px;
+    flex-wrap: wrap;
+  }
+  .meta-row .meta-item .label { margin-bottom: 6px; }
+  .meta-row .meta-item .value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .score-ring-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .score-ring {
+    position: relative;
+    width: 132px;
+    height: 132px;
+  }
+  .score-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .score-ring .num {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Playfair Display', serif;
+    font-weight: 500;
+    font-size: 36px;
+    color: var(--text);
+  }
+  .score-ring .num small {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 2px;
+  }
+
+  /* card grids */
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 32px;
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 24px;
+    margin-bottom: 64px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 28px;
+  }
+  .card .card-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 400;
+    font-size: 20px;
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+  .card .card-eyebrow { margin-bottom: 22px; display: block; }
+
+  /* score breakdown bars */
+  .mini-bar { margin-bottom: 18px; }
+  .mini-bar:last-of-type { margin-bottom: 0; }
+  .mini-bar .top {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .mini-bar .top .lbl { color: var(--text); }
+  .mini-bar .top .val { font-family: 'JetBrains Mono', monospace; color: var(--muted); }
+  .mini-bar .track {
+    height: 2px;
+    background: var(--border);
+    position: relative;
+  }
+  .mini-bar .fill {
+    position: absolute;
+    inset: 0;
+    height: 2px;
+    background: var(--olive);
+    width: 0;
+    transition: width 800ms ease;
+  }
+  .mini-bar .fill.med { background: var(--green); }
+  .mini-bar .fill.high { background: var(--terracotta); }
+
+  .perm-breakdown {
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .perm-breakdown .col .label { margin-bottom: 8px; }
+  .perm-breakdown .col .count {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .perm-breakdown .col.necessary .count { color: var(--olive); }
+  .perm-breakdown .col.optional .count { color: var(--stone); }
+  .perm-breakdown .col.excessive .count { color: var(--terracotta); }
+
+  /* sdk bar chart */
+  .sdk-row { margin-bottom: 14px; }
+  .sdk-row:last-child { margin-bottom: 0; }
+  .sdk-row .sdk-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .sdk-row .sdk-name .ver { color: var(--muted); }
+  .sdk-row .bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .sdk-row .bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    position: relative;
+  }
+  .sdk-row .bar-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 0;
+    transition: width 700ms ease;
+  }
+  .sdk-row .bar-fill.low { background: var(--olive); }
+  .sdk-row .bar-fill.med { background: var(--stone); }
+  .sdk-row .bar-fill.high { background: var(--terracotta); }
+  .sdk-row .score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    width: 36px;
+    text-align: right;
+  }
+
+  /* permissions list */
+  .perm-row {
+    display: block;
+    padding: 12px 0 12px 14px;
+    border-left: 3px solid var(--olive);
+    margin-bottom: 8px;
+  }
+  .perm-row.med { border-left-color: var(--stone); }
+  .perm-row.high { border-left-color: var(--terracotta); }
+  .perm-row .pname {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text);
+    margin-bottom: 4px;
+    word-break: break-all;
+  }
+  .perm-row .plbl { color: var(--muted); }
+  .perm-row.high .plbl { color: var(--terracotta); }
+  .perm-row.med .plbl { color: var(--stone); }
+  .perm-row.low .plbl { color: var(--olive); }
+
+  /* data categories */
+  .dc-row {
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+  .dc-row:last-child { border-bottom: none; }
+  .dc-row .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-top: 7px;
+    background: var(--olive);
+  }
+  .dc-row.med .dot { background: var(--stone); }
+  .dc-row.high .dot { background: var(--terracotta); }
+  .dc-row .dc-cat .label { display: block; margin-bottom: 8px; }
+  .dc-row .dc-bar {
+    height: 2px;
+    background: var(--border);
+    position: relative;
+    margin-bottom: 10px;
+    max-width: 220px;
+  }
+  .dc-row .dc-bar .f {
+    position: absolute; inset: 0;
+    background: var(--olive);
+    width: 0;
+    transition: width 700ms ease;
+  }
+  .dc-row.med .dc-bar .f { background: var(--stone); }
+  .dc-row.high .dc-bar .f { background: var(--terracotta); }
+  .dc-row .dc-desc {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.7;
+    max-width: 480px;
+  }
+
+  /* findings timeline */
+  .timeline {
+    position: relative;
+    padding-left: 28px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 4px; top: 6px; bottom: 6px;
+    width: 1px;
+    background: var(--border);
+  }
+  .tl-item {
+    position: relative;
+    padding-bottom: 28px;
+  }
+  .tl-item:last-child { padding-bottom: 0; }
+  .tl-item::before {
+    content: '';
+    position: absolute;
+    left: -28px;
+    top: 6px;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--olive);
+    border: 2px solid var(--bg);
+  }
+  .tl-item.issue::before { background: var(--terracotta); }
+  .tl-item .t-title {
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 4px;
+    font-weight: 400;
+  }
+  .tl-item .t-desc {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* ---------- HISTORY ---------- */
+  .history-wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 48px 56px 80px;
+  }
+  .history-header { margin-bottom: 40px; }
+  .history-header .h-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 500;
+    font-size: 48px;
+    margin-top: 8px;
+    letter-spacing: -0.015em;
+  }
+  table.history {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  table.history thead th {
+    text-align: left;
+    padding: 16px 14px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Inter', sans-serif;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  table.history tbody tr {
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 200ms;
+  }
+  table.history tbody tr:hover { background: rgba(0,0,0,0.03); }
+  table.history tbody tr:hover td:first-child { color: var(--olive); }
+  table.history td {
+    padding: 22px 14px;
+    font-size: 13px;
+  }
+  table.history td:nth-child(1) { color: var(--text); font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 500; }
+  table.history td.pkg-cell { font-family: 'JetBrains Mono', monospace; color: var(--muted); font-size: 11.5px; }
+  table.history td.score-cell { font-family: 'JetBrains Mono', monospace; color: var(--text); }
+  table.history td.date-cell { color: var(--muted); }
+  .delete-btn {
+    background: transparent;
+    border: 1px solid var(--terracotta);
+    color: var(--terracotta);
+    padding: 7px 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 180ms;
+  }
+  .delete-btn:hover { background: rgba(192, 122, 90, 0.08); }
+
+  .empty {
+    padding: 100px 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* ---------- EXPORT BAR ---------- */
+  .export-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
+    padding: 16px 56px;
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 50;
+  }
+  .export-bar.show { display: flex; }
+  .export-bar .left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .export-bar .left .name {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .export-bar .left .pkg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+  .export-bar .right { display: flex; gap: 12px; }
+  .btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 18px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 200ms, color 200ms;
+  }
+  .btn:hover { border-color: var(--olive); color: var(--olive); }
+
+  /* ---------- toast ---------- */
+  .toast {
+    position: fixed;
+    bottom: 96px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 12px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    opacity: 0;
+    transition: opacity 240ms;
+    z-index: 60;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ---------- modal ---------- */
+  .modal {
+    position: fixed; inset: 0;
+    background: rgba(26,26,24,0.5);
+    backdrop-filter: blur(4px);
+    z-index: 70;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal.show { display: flex; }
+  .modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 32px;
+    max-width: 420px;
+    width: 90%;
+  }
+  .modal-card .label { margin-bottom: 12px; display: block; }
+  .modal-card .m-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 400;
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+  .modal-card .m-desc {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    line-height: 1.7;
+  }
+  .modal-card .m-actions {
+    display: flex; justify-content: flex-end; gap: 10px;
+  }
+
+  /* ---------- AUDIT CARDS (history list) ---------- */
+  .audit-cards { display: flex; flex-direction: column; gap: 16px; }
+  .audit-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px 28px;
+    cursor: pointer;
+    transition: border-color 200ms, box-shadow 200ms;
+  }
+  .audit-card:hover { border-color: var(--olive); box-shadow: 0 2px 12px rgba(74,94,42,0.07); }
+  .audit-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 18px;
+  }
+  .audit-card-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+  .audit-card-pkg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .audit-card-right { text-align: right; }
+  .audit-score-num {
+    font-family: 'Playfair Display', serif;
+    font-weight: 500;
+    font-size: 32px;
+    color: var(--olive);
+    line-height: 1;
+  }
+  .audit-score-num.med { color: var(--stone); }
+  .audit-score-num.high { color: var(--terracotta); }
+  .audit-card-meta {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .audit-meta-item { display: flex; flex-direction: column; gap: 5px; }
+  .audit-meta-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .audit-card-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .btn-view-report {
+    background: transparent;
+    border: 1px solid var(--olive);
+    color: var(--olive);
+    padding: 8px 20px;
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 180ms, color 180ms;
+  }
+  .btn-view-report:hover { background: var(--olive); color: #fff; }
+
+  /* ---------- HISTORY DETAIL (full inline report) ---------- */
+  .history-back {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .back-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 18px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 200ms, color 200ms;
+  }
+  .back-btn:hover { border-color: var(--olive); color: var(--olive); }
+
+  /* ---------- OWASP CARD ---------- */
+  .owasp-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .owasp-cell {
+    border: 1px solid var(--border);
+    padding: 10px 8px;
+    text-align: center;
+    background: var(--surface);
+    transition: border-color 200ms;
+  }
+  .owasp-cell.triggered { border-color: var(--terracotta); background: rgba(176,90,56,0.04); }
+  .owasp-cell.triggered.medium { border-color: var(--stone); background: rgba(122,112,96,0.04); }
+  .owasp-cell .ow-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .owasp-cell.triggered .ow-id { color: var(--terracotta); }
+  .owasp-cell.triggered.medium .ow-id { color: var(--stone); }
+  .owasp-cell:not(.triggered) .ow-id { color: var(--muted); }
+  .owasp-cell .ow-label {
+    font-size: 9px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .owasp-finding {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .owasp-finding:last-child { border-bottom: none; }
+  .owasp-finding .of-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .owasp-finding .of-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 2px 6px;
+    border: 1px solid var(--terracotta);
+    color: var(--terracotta);
+  }
+  .owasp-finding .of-id.medium { border-color: var(--stone); color: var(--stone); }
+  .owasp-finding .of-id.low { border-color: var(--olive); color: var(--olive); }
+  .owasp-finding .of-title {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 400;
+  }
+  .owasp-finding .of-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .owasp-finding .of-evidence {
+    margin-top: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--stone);
+  }
+
+  /* responsive */
+  @media (max-width: 1100px) {
+    .grid-3 { grid-template-columns: 1fr 1fr; }
+    .topnav, .dash, .history-wrap, .export-bar { padding-left: 32px; padding-right: 32px; }
+    .owasp-grid { grid-template-columns: repeat(5, 1fr); }
+  }
+  @media (max-width: 760px) {
+    .grid-3, .grid-2 { grid-template-columns: 1fr; }
+    .dash-header { grid-template-columns: 1fr; }
+    .score-ring-wrap { align-items: flex-start; }
+    .upload-headline { font-size: 36px; }
+    .dash-header .app-name { font-size: 40px; }
+    .owasp-grid { grid-template-columns: repeat(5, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div class="shell">
+
+  <!-- ============ TOP NAV ============ -->
+  <header class="topnav">
+    <div class="brand">
+      <span class="mark">Posture</span>
+      <span class="tag">v0.4 · forensic preview</span>
+    </div>
+    <nav>
+      <a data-nav="upload" class="active">New Audit</a>
+      <a data-nav="history">Past Audits</a>
+    </nav>
+  </header>
+
+  <!-- ============ UPLOAD ============ -->
+  <section class="screen active" id="screen-upload">
+    <div class="upload-wrap">
+      <div class="upload-eyebrow"><span class="label">— Privacy Posture · APK Forensics</span></div>
+      <h1 class="display upload-headline">Understand what your app collects.</h1>
+      <p class="upload-sub">Drop an Android package below. We dissect its permissions, embedded SDKs and data flows, then assemble a forensic report you can hand to legal, security or your users.</p>
+
+      <div class="dropzone" id="dropzone">
+        <div class="label">— Drop APK here</div>
+        <div class="dz-title">or click to select a file</div>
+        <div class="dz-hint">.apk · max 200&nbsp;MB · processed locally</div>
+      </div>
+      <input type="file" id="file-input" accept=".apk" style="display:none" />
+
+      <div class="pkg-input-wrap">
+        <label class="label" for="pkg">— Or analyze by package name</label>
+        <input id="pkg" class="pkg-input" placeholder="com.example.app" />
+      </div>
+
+      <div class="stat-row">
+        <div class="stat">
+          <div class="num">1,284</div>
+          <div class="label">— Apps audited</div>
+        </div>
+        <div class="stat">
+          <div class="num">37</div>
+          <div class="label">— SDKs catalogued</div>
+        </div>
+        <div class="stat">
+          <div class="num">142</div>
+          <div class="label">— Permission patterns</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LOADING ============ -->
+  <section class="screen" id="screen-loading">
+    <div class="progress-line" id="progress-line"></div>
+    <div class="loading-wrap">
+      <div class="loading-eyebrow"><span class="label">— Forensic pass in progress</span></div>
+      <h2 class="loading-title">Reading the package.</h2>
+
+      <div class="log" id="log"></div>
+      <div class="error-box" id="error-box" style="display:none">
+        <div class="err-label">— Error</div>
+        <div class="err-msg" id="error-msg"></div>
+        <button class="err-back" id="err-back-btn">← Try Again</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section class="screen" id="screen-dashboard">
+    <div class="dash">
+      <div class="dash-header">
+        <div>
+          <h1 class="display app-name" id="d-app-name">—</h1>
+          <div class="pkg" id="d-pkg">—</div>
+
+          <div class="meta-row" id="d-meta"></div>
+        </div>
+        <div class="score-ring-wrap">
+          <div class="label">— Privacy score</div>
+          <div class="score-ring">
+            <svg viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="44" fill="none" stroke="#E5E2DC" stroke-width="2" />
+              <circle id="score-ring-fill" cx="50" cy="50" r="44" fill="none" stroke="#4A5E2A" stroke-width="2" stroke-dasharray="276" stroke-dashoffset="276" stroke-linecap="butt" />
+            </svg>
+            <div class="num"><span id="d-score">0</span><small>/100</small></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 1: 3 cards -->
+      <div class="grid-3">
+        <div class="card" id="card-breakdown">
+          <span class="label card-eyebrow">— 01 · Composite</span>
+          <div class="card-title">Score breakdown</div>
+
+          <div style="margin-top: 24px">
+            <div class="mini-bar"><div class="top"><span class="lbl">Permissions</span><span class="val" id="mb-perm">—</span></div><div class="track"><div class="fill" id="mb-perm-fill"></div></div></div>
+            <div class="mini-bar"><div class="top"><span class="lbl">SDKs</span><span class="val" id="mb-sdk">—</span></div><div class="track"><div class="fill med" id="mb-sdk-fill"></div></div></div>
+            <div class="mini-bar"><div class="top"><span class="lbl">GDPR</span><span class="val" id="mb-gdpr">—</span></div><div class="track"><div class="fill" id="mb-gdpr-fill"></div></div></div>
+          </div>
+
+          <div class="perm-breakdown">
+            <div class="col necessary">
+              <div class="label">— Necessary</div>
+              <div class="count" id="pb-nec">0</div>
+            </div>
+            <div class="col optional">
+              <div class="label">— Optional</div>
+              <div class="count" id="pb-opt">0</div>
+            </div>
+            <div class="col excessive">
+              <div class="label">— Excessive</div>
+              <div class="count" id="pb-exc">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="card-sdk">
+          <span class="label card-eyebrow">— 02 · Embedded SDKs</span>
+          <div class="card-title">SDK risk scores</div>
+          <div id="sdk-list" style="margin-top: 24px"></div>
+        </div>
+
+        <div class="card" id="card-perms">
+          <span class="label card-eyebrow">— 03 · Manifest</span>
+          <div class="card-title">Permissions</div>
+          <div id="perm-list" style="margin-top: 24px; max-height: 420px; overflow-y: auto"></div>
+        </div>
+      </div>
+
+      <!-- Row 2: 2 cards -->
+      <div class="grid-2">
+        <div class="card">
+          <span class="label card-eyebrow">— 04 · Data Inventory</span>
+          <div class="card-title">Data collected by category</div>
+          <div id="dc-list" style="margin-top: 20px"></div>
+        </div>
+        <div class="card">
+          <span class="label card-eyebrow">— 05 · Findings</span>
+          <div class="card-title">Key findings</div>
+          <div class="timeline" id="findings" style="margin-top: 24px"></div>
+        </div>
+      </div>
+
+      <!-- Row 3: OWASP Mobile Top 10 full-width card -->
+      <div style="margin-top: 24px; margin-bottom: 64px">
+        <div class="card" id="card-owasp">
+          <span class="label card-eyebrow">— 06 · OWASP Mobile Top 10 (2024)</span>
+          <div class="card-title">Security alignment</div>
+          <div id="owasp-grid" class="owasp-grid" style="margin-bottom: 24px"></div>
+          <div id="owasp-findings" style="margin-top: 8px"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HISTORY ============ -->
+  <section class="screen" id="screen-history">
+    <div class="history-wrap">
+      <div class="history-header" id="history-header">
+        <span class="label">— Archive</span>
+        <h1 class="h-title">Past audits.</h1>
+      </div>
+      <div id="history-list-view"></div>
+      <div id="history-detail-view" style="display:none"></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ============ EXPORT BAR ============ -->
+<div class="export-bar" id="export-bar">
+  <div class="left">
+    <span class="name" id="exp-name">—</span>
+    <span class="pkg" id="exp-pkg">—</span>
+  </div>
+  <div class="right">
+    <button class="btn" id="btn-download">Download Report</button>
+    <button class="btn" id="btn-copy">Copy JSON</button>
+  </div>
+</div>
+
+<!-- toast -->
+<div class="toast" id="toast">—</div>
+
+<!-- delete-confirm modal -->
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <span class="label">— Confirm</span>
+    <div class="m-title">Delete this audit?</div>
+    <div class="m-desc">This permanently removes the report and its findings from your history. This action cannot be undone.</div>
+    <div class="m-actions">
+      <button class="btn" id="modal-cancel">Cancel</button>
+      <button class="delete-btn" id="modal-confirm">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCRIPTS
+============================================================ -->
+<script>
+/* =====================================================
+   3D BACKGROUND — APK NODE GRAPH
+   A slowly rotating cluster of nodes (permissions / SDKs)
+   connected by thin edges. Occasional nodes pulse in
+   terracotta (risky) or olive (safe). Pure canvas2D
+   with manual perspective projection. 60fps.
+===================================================== */
+(function bg() {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, DPR;
+
+  const NODES = [];
+  const NODE_COUNT = 56;
+  const FOCAL = 520;
+
+  // generate nodes on a rough double-shell sphere
+  function rand(min, max) { return min + Math.random() * (max - min); }
+  function init() {
+    NODES.length = 0;
+    for (let i = 0; i < NODE_COUNT; i++) {
+      // fibonacci sphere distribution for evenness
+      const phi = Math.acos(1 - 2 * (i + 0.5) / NODE_COUNT);
+      const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+      const r = 200 + (i % 3) * 40 + rand(-10, 10);
+      NODES.push({
+        x: r * Math.sin(phi) * Math.cos(theta),
+        y: r * Math.sin(phi) * Math.sin(theta),
+        z: r * Math.cos(phi),
+        baseSize: rand(1.2, 2.4),
+        // pulse state
+        pulse: 0,
+        pulseDir: 0,
+        pulseColor: '#4A5E2A',
+        nextPulseAt: rand(2000, 14000),
+      });
+    }
+  }
+
+  // precompute neighbor edges (k-nearest for stability)
+  let EDGES = [];
+  function computeEdges() {
+    EDGES = [];
+    for (let i = 0; i < NODES.length; i++) {
+      // find ~3 nearest neighbors
+      const dists = [];
+      for (let j = 0; j < NODES.length; j++) {
+        if (i === j) continue;
+        const dx = NODES[i].x - NODES[j].x;
+        const dy = NODES[i].y - NODES[j].y;
+        const dz = NODES[i].z - NODES[j].z;
+        dists.push({ j, d: dx*dx + dy*dy + dz*dz });
+      }
+      dists.sort((a,b) => a.d - b.d);
+      for (let k = 0; k < 3; k++) {
+        const a = i, b = dists[k].j;
+        if (a < b) EDGES.push([a, b]);
+      }
+    }
+  }
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  init();
+  computeEdges();
+  resize();
+  window.addEventListener('resize', resize);
+
+  let t0 = performance.now();
+  let lastFrame = t0;
+
+  function project(x, y, z) {
+    const scale = FOCAL / (FOCAL + z);
+    return {
+      sx: W / 2 + x * scale,
+      sy: H / 2 + y * scale,
+      scale,
+    };
+  }
+
+  function frame(now) {
+    const dt = now - lastFrame;
+    lastFrame = now;
+    const t = (now - t0) / 1000;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // rotation matrices
+    const ry = t * 0.08;          // around Y
+    const rx = Math.sin(t * 0.05) * 0.25; // gentle tilt
+    const cosY = Math.cos(ry), sinY = Math.sin(ry);
+    const cosX = Math.cos(rx), sinX = Math.sin(rx);
+
+    // transform all nodes
+    const tNodes = new Array(NODES.length);
+    for (let i = 0; i < NODES.length; i++) {
+      const n = NODES[i];
+      // rotate Y
+      let x = n.x * cosY - n.z * sinY;
+      let z = n.x * sinY + n.z * cosY;
+      let y = n.y;
+      // rotate X
+      const ny = y * cosX - z * sinX;
+      const nz = y * sinX + z * cosX;
+      tNodes[i] = { x, y: ny, z: nz, n };
+    }
+
+    // pulse logic
+    for (let i = 0; i < NODES.length; i++) {
+      const n = NODES[i];
+      n.nextPulseAt -= dt;
+      if (n.nextPulseAt <= 0 && n.pulseDir === 0) {
+        n.pulseDir = 1;
+        n.pulse = 0;
+        // 18% terracotta (risky), 12% stone (medium), rest olive
+        const r = Math.random();
+        n.pulseColor = r < 0.18 ? '#B05A38' : (r < 0.30 ? '#7A7060' : '#4A5E2A');
+        n.nextPulseAt = rand(4000, 16000);
+      }
+      if (n.pulseDir !== 0) {
+        n.pulse += dt * 0.0015 * n.pulseDir;
+        if (n.pulse >= 1) { n.pulse = 1; n.pulseDir = -1; }
+        if (n.pulse <= 0 && n.pulseDir === -1) { n.pulse = 0; n.pulseDir = 0; }
+      }
+    }
+
+    // draw edges
+    ctx.lineWidth = 0.6;
+    for (let e = 0; e < EDGES.length; e++) {
+      const [a, b] = EDGES[e];
+      const A = tNodes[a], B = tNodes[b];
+      // depth-based fade: closer (smaller z) = brighter
+      const avgZ = (A.z + B.z) / 2;
+      const depthT = Math.max(0, Math.min(1, (avgZ + 260) / 520));
+      // base edge alpha very low
+      let alpha = (1 - depthT) * 0.18 + 0.04;
+      // highlight if either endpoint is pulsing
+      const pulseStrength = Math.max(A.n.pulse, B.n.pulse);
+      let color = `rgba(140, 135, 125, ${alpha})`;
+      if (pulseStrength > 0) {
+        const c = A.n.pulse > B.n.pulse ? A.n.pulseColor : B.n.pulseColor;
+        const rgb = hexToRgb(c);
+        alpha = (1 - depthT) * 0.5 * pulseStrength + 0.05;
+        color = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+      }
+      const pA = project(A.x, A.y, A.z);
+      const pB = project(B.x, B.y, B.z);
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(pA.sx, pA.sy);
+      ctx.lineTo(pB.sx, pB.sy);
+      ctx.stroke();
+    }
+
+    // draw nodes (sorted by z so far ones render first)
+    const order = tNodes.map((n, i) => i).sort((i, j) => tNodes[j].z - tNodes[i].z);
+    for (let k = 0; k < order.length; k++) {
+      const i = order[k];
+      const N = tNodes[i];
+      const p = project(N.x, N.y, N.z);
+      const depthT = Math.max(0, Math.min(1, (N.z + 260) / 520));
+      const size = N.n.baseSize * p.scale * (1 + N.n.pulse * 1.4);
+
+      // subtle base node
+      const baseAlpha = (1 - depthT) * 0.45 + 0.08;
+      let r = 160, g = 152, b = 140; // stone-ish on light bg
+      if (N.n.pulse > 0) {
+        const rgb = hexToRgb(N.n.pulseColor);
+        r = rgb.r; g = rgb.g; b = rgb.b;
+      } else {
+        r = 140; g = 135; b = 125; // muted on light
+      }
+
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${baseAlpha + N.n.pulse * 0.5})`;
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, size, 0, Math.PI * 2);
+      ctx.fill();
+
+      // glow ring on pulse
+      if (N.n.pulse > 0.05) {
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.35 * N.n.pulse})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, size + 4 + N.n.pulse * 6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    requestAnimationFrame(frame);
+  }
+  function hexToRgb(hex) {
+    const h = hex.replace('#', '');
+    return {
+      r: parseInt(h.substring(0, 2), 16),
+      g: parseInt(h.substring(2, 4), 16),
+      b: parseInt(h.substring(4, 6), 16),
+    };
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* =====================================================
+   HELPERS
+===================================================== */
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function rand(min, max) { return min + Math.random() * (max - min); }
+
+/* =====================================================
+   APP STATE + NAV
+===================================================== */
+const API = 'http://127.0.0.1:8000';
+const screens = {
+  upload:   document.getElementById('screen-upload'),
+  loading:  document.getElementById('screen-loading'),
+  dashboard:document.getElementById('screen-dashboard'),
+  history:  document.getElementById('screen-history'),
+};
+let currentReport = null;
+
+function showScreen(name) {
+  Object.values(screens).forEach(s => s.classList.remove('active'));
+  screens[name].classList.add('active');
+  // bg behavior
+  document.body.classList.remove('bg-dim', 'bg-hide');
+  if (name === 'dashboard' || name === 'history') {
+    document.body.classList.add('bg-hide');
+  } else if (name === 'loading') {
+    document.body.classList.add('bg-dim');
+  }
+  // export bar visibility
+  const bar = document.getElementById('export-bar');
+  if (name === 'dashboard' && currentReport) bar.classList.add('show');
+  else bar.classList.remove('show');
+  // nav active state
+  const activeNav = name === 'history' ? 'history' : 'upload';
+  document.querySelectorAll('.topnav nav a').forEach(a => {
+    a.classList.toggle('active', a.dataset.nav === activeNav);
+  });
+}
+
+document.querySelectorAll('.topnav nav a').forEach(a => {
+  a.addEventListener('click', () => {
+    const n = a.dataset.nav;
+    if (n === 'history') { renderHistory(); showScreen('history'); }
+    else showScreen('upload');
+  });
+});
+
+document.getElementById('err-back-btn').addEventListener('click', () => {
+  document.getElementById('error-box').style.display = 'none';
+  showScreen('upload');
+});
+
+/* =====================================================
+   UPLOAD SCREEN
+===================================================== */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragging'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragging'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragging');
+  if (e.dataTransfer.files.length) startAudit(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) startAudit(fileInput.files[0]);
+});
+document.getElementById('pkg').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.value.trim()) startAudit(null, e.target.value.trim());
+});
+
+/* =====================================================
+   AUDIT FLOW
+===================================================== */
+async function startAudit(file, pkgName) {
+  showScreen('loading');
+  startLog();
+  document.getElementById('error-box').style.display = 'none';
+
+  try {
+    // step 1: upload
+    await advanceLog(0);
+    const fd = new FormData();
+    if (file) fd.append('file', file);
+    if (pkgName) fd.append('package', pkgName);
+
+    let upRes;
+    try {
+      upRes = await fetch(`${API}/upload`, { method: 'POST', body: fd });
+    } catch(netErr) {
+      throw new Error('Cannot reach backend at ' + API + ' — is the server running? (' + netErr.message + ')');
+    }
+
+    if (!upRes.ok) {
+      let detail = 'Upload failed (HTTP ' + upRes.status + ')';
+      try { const e = await upRes.json(); detail = e.detail || detail; } catch(_) {}
+      throw new Error(detail);
+    }
+    const upData = await upRes.json();
+    const id = upData.app_id;
+    const eid = encodeURIComponent(id);
+
+    // step 2: analyze permissions + trackers (allSettled = never crashes)
+    await advanceLog(1);
+    await Promise.allSettled([
+      fetch(`${API}/analyze/permissions/${eid}`, { method: 'POST' }),
+      fetch(`${API}/analyze/trackers/${eid}`,    { method: 'POST' }),
+    ]);
+
+    // step 3: AI analysis
+    await advanceLog(2);
+    try {
+      const aiRes = await fetch(`${API}/analyze/ai/${eid}`, { method: 'POST' });
+      if (aiRes.ok) await aiRes.json();
+    } catch(e) { console.warn('AI step skipped:', e.message); }
+
+    // step 4: assemble report
+    await advanceLog(3);
+    let reportRes;
+    try {
+      reportRes = await fetch(`${API}/report/${eid}`);
+    } catch(netErr) {
+      throw new Error('Cannot reach backend while fetching report (' + netErr.message + ')');
+    }
+    if (!reportRes.ok) {
+      let detail = 'Could not load report (HTTP ' + reportRes.status + ')';
+      try { const e = await reportRes.json(); detail = e.detail || detail; } catch(_) {}
+      throw new Error(detail);
+    }
+    const report = await reportRes.json();
+
+    // step 5: AI details (optional)
+    let aiDetails = { ai_analysis: {} };
+    try {
+      const aiDetRes = await fetch(`${API}/report/${eid}/ai-details`);
+      if (aiDetRes.ok) aiDetails = await aiDetRes.json();
+    } catch(e) { console.warn('AI details skipped:', e.message); }
+
+    await advanceLog(4);
+    await sleep(280);
+
+    currentReport = report;
+    renderDashboard(report);
+    renderAIDetails(aiDetails);
+    showScreen('dashboard');
+
+  } catch(err) {
+    console.error('Audit failed:', err);
+    // Show error inside the loading screen — stays visible until user clicks back
+    const box = document.getElementById('error-box');
+    document.getElementById('error-msg').textContent = err.message;
+    box.style.display = 'block';
+  }
+}
+
+/* =====================================================
+   LOADING LOG
+===================================================== */
+const LOG_STEPS = [
+  'unpack apk · read manifest',
+  'analyze permissions · classify risk',
+  'detect embedded sdks · score reputation',
+  'classify category · derive checklist',
+  'compose forensic report',
+];
+function startLog() {
+  const log = document.getElementById('log');
+  log.innerHTML = LOG_STEPS.map((s, i) =>
+    `<div class="line pending" data-i="${i}"><span class="marker">${String(i+1).padStart(2,'0')}</span><span>${s}</span></div>`
+  ).join('');
+  // first line current
+  log.querySelector('[data-i="0"]').classList.replace('pending', 'current');
+  document.getElementById('progress-line').style.width = '0%';
+}
+async function advanceLog(i) {
+  const log = document.getElementById('log');
+  const lines = log.querySelectorAll('.line');
+  for (let k = 0; k < i; k++) {
+    lines[k].classList.remove('current', 'pending');
+    lines[k].classList.add('done');
+  }
+  if (lines[i]) {
+    lines[i].classList.remove('pending');
+    lines[i].classList.add('current');
+  }
+  const pct = ((i + 1) / LOG_STEPS.length) * 100;
+  document.getElementById('progress-line').style.width = pct + '%';
+  await sleep(rand(500, 900));
+}
+
+/* =====================================================
+   DASHBOARD RENDER
+===================================================== */
+function renderDashboard(r) {
+  // header
+  document.getElementById('d-app-name').textContent = r.name;
+  document.getElementById('d-pkg').textContent = r.pkg;
+  // severity badge
+  const severityColors = { DANGEROUS:'#C07A5A', INVASIVE:'#C07A5A', MODERATE:'#C4B9A8', LOW:'#A3AE85' };
+  const sev = r.severity || 'LOW';
+  const sevEl = document.getElementById('d-severity');
+  if (sevEl) {
+    sevEl.textContent = '— ' + sev;
+    sevEl.style.color = severityColors[sev] || '#A3AE85';
+  }
+
+  const meta = document.getElementById('d-meta');
+  meta.innerHTML = '';
+  [
+    ['Version', r.version],
+    ['Target', r.sdkVersion],
+    ['Size', r.size],
+    ['Category', r.category],
+  ].forEach(([k, v]) => {
+    const el = document.createElement('div');
+    el.className = 'meta-item';
+    el.innerHTML = `<div class="label">— ${k}</div><div class="value">${v}</div>`;
+    meta.appendChild(el);
+  });
+
+  // score ring
+  const C = 2 * Math.PI * 44;
+  const ring = document.getElementById('score-ring-fill');
+  ring.setAttribute('stroke-dasharray', C);
+  ring.setAttribute('stroke-dashoffset', C);
+  // animate
+  setTimeout(() => {
+    ring.style.transition = 'stroke-dashoffset 1100ms ease';
+    ring.setAttribute('stroke-dashoffset', C * (1 - r.score / 100));
+  }, 80);
+  document.getElementById('d-score').textContent = r.score;
+
+  // breakdown
+  const setBar = (id, fillId, val, threshold) => {
+    document.getElementById(id).textContent = val + '/100';
+    const f = document.getElementById(fillId);
+    f.classList.remove('med', 'high');
+    if (val < 50) f.classList.add('high');
+    else if (val < 75) f.classList.add('med');
+    setTimeout(() => f.style.width = val + '%', 100);
+  };
+  setBar('mb-perm', 'mb-perm-fill', r.breakdown.permissions);
+  setBar('mb-sdk', 'mb-sdk-fill', r.breakdown.sdks);
+  setBar('mb-gdpr', 'mb-gdpr-fill', r.breakdown.gdpr);
+
+  document.getElementById('pb-nec').textContent = r.breakdown.necessary;
+  document.getElementById('pb-opt').textContent = r.breakdown.optional;
+  document.getElementById('pb-exc').textContent = r.breakdown.excessive;
+
+  // SDKs
+  const sdkList = document.getElementById('sdk-list');
+  sdkList.innerHTML = '';
+  r.sdks.forEach(sdk => {
+    const row = document.createElement('div');
+    row.className = 'sdk-row';
+    const gdprBadge = sdk.gdpr_fined ? `<span style="font-size:9px;color:#C07A5A;margin-left:6px">⚠ GDPR FINE</span>` : '';
+    const confBadge = sdk.confidence ? `<span style="font-size:9px;color:#4A4A46;margin-left:6px">${sdk.confidence}% conf.</span>` : '';
+    row.innerHTML = `
+      <div class="sdk-name">
+        <span>${sdk.name}${gdprBadge}</span>
+        <span class="ver">${sdk.version || '—'}${confBadge}</span>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar-track"><div class="bar-fill ${sdk.risk}"></div></div>
+        <div class="score">${sdk.score}</div>
+      </div>`;
+    sdkList.appendChild(row);
+    setTimeout(() => row.querySelector('.bar-fill').style.width = sdk.score + '%', 200);
+  });
+
+  // permissions
+  const permList = document.getElementById('perm-list');
+  permList.innerHTML = '';
+  r.permissions.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'perm-row ' + p.risk;
+    row.innerHTML = `<div class="pname">${p.name}</div><div class="label plbl">— ${p.label}</div>`;
+    permList.appendChild(row);
+  });
+
+  // data categories
+  const dcList = document.getElementById('dc-list');
+  dcList.innerHTML = '';
+  r.categories.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'dc-row ' + c.risk;
+    row.innerHTML = `
+      <div class="dot"></div>
+      <div class="dc-cat">
+        <div class="label">— ${c.cat}</div>
+        <div class="dc-bar"><div class="f"></div></div>
+        <div class="dc-desc">${c.desc}</div>
+      </div>`;
+    dcList.appendChild(row);
+    setTimeout(() => row.querySelector('.f').style.width = (c.amount * 100) + '%', 250);
+  });
+
+  // findings
+  const fList = document.getElementById('findings');
+  fList.innerHTML = '';
+  r.findings.forEach(f => {
+    const item = document.createElement('div');
+    item.className = 'tl-item ' + (f.kind === 'issue' ? 'issue' : 'positive');
+    item.innerHTML = `<div class="t-title">${f.title}</div><div class="t-desc">${f.desc}</div>`;
+    fList.appendChild(item);
+  });
+
+  // OWASP Mobile Top 10
+  renderOWASP(r.owasp);
+
+  // export bar
+  document.getElementById('exp-name').textContent = r.name;
+  document.getElementById('exp-pkg').textContent = r.pkg;
+}
+
+/* =====================================================
+   AI DETAILS RENDER
+===================================================== */
+function renderAIDetails(data) {
+  const ai = data && data.ai_analysis && data.ai_analysis.ai_details;
+  if (!ai) return;
+
+  // Append a summary finding if the AI produced a summary
+  if (ai.summary || ai.biggest_risk || ai.grade) {
+    const fList = document.getElementById('findings');
+    if (ai.grade) {
+      const gradeItem = document.createElement('div');
+      gradeItem.className = 'tl-item positive';
+      gradeItem.innerHTML = `<div class="t-title">AI Privacy Grade: ${ai.grade}</div><div class="t-desc">${ai.summary || ''}</div>`;
+      fList.prepend(gradeItem);
+    }
+    if (ai.biggest_risk) {
+      const riskItem = document.createElement('div');
+      riskItem.className = 'tl-item issue';
+      riskItem.innerHTML = `<div class="t-title">Biggest Risk Identified</div><div class="t-desc">${ai.biggest_risk}</div>`;
+      fList.appendChild(riskItem);
+    }
+  }
+}
+
+/* =====================================================
+   OWASP MOBILE TOP 10 RENDER
+===================================================== */
+const OWASP_LABELS = {
+  M1:'Improper Credential Usage', M2:'Inadequate Supply Chain',
+  M3:'Insecure Auth/Authorization', M4:'Insufficient I/O Validation',
+  M5:'Insecure Communication', M6:'Inadequate Privacy Controls',
+  M7:'Insufficient Binary Protections', M8:'Security Misconfiguration',
+  M9:'Insecure Data Storage', M10:'Insufficient Cryptography',
+};
+
+function renderOWASP(owasp) {
+  if (!owasp) return;
+  const topRisks = new Set(owasp.top_risks || []);
+  const findingsMap = {};
+  (owasp.findings || []).forEach(f => { findingsMap[f.id] = f; });
+
+  // Build 10-cell grid
+  const grid = document.getElementById('owasp-grid');
+  if (!grid) return;
+  grid.innerHTML = ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10'].map(id => {
+    const f = findingsMap[id];
+    const sev = f ? f.severity : '';
+    const cls = f ? (sev === 'medium' ? 'triggered medium' : 'triggered') : '';
+    return `<div class="owasp-cell ${cls}">
+      <div class="ow-id">${id}</div>
+      <div class="ow-label">${(OWASP_LABELS[id]||id).split(' ').slice(0,2).join(' ')}</div>
+    </div>`;
+  }).join('');
+
+  // Findings list
+  const fList = document.getElementById('owasp-findings');
+  if (!fList) return;
+  const findings = owasp.findings || [];
+  if (!findings.length) {
+    fList.innerHTML = '<div style="color:var(--muted);font-size:12px">No OWASP categories triggered.</div>';
+    return;
+  }
+  fList.innerHTML = findings.map(f => {
+    const sevClass = f.severity === 'high' ? '' : f.severity === 'medium' ? 'medium' : 'low';
+    const evid = (f.evidence||[]).slice(0,4).join(' · ');
+    return `<div class="owasp-finding">
+      <div class="of-header">
+        <span class="of-id ${sevClass}">${f.id}</span>
+        <span class="of-title">${f.title}</span>
+      </div>
+      <div class="of-desc">${f.description}</div>
+      ${evid ? `<div class="of-evidence">${evid}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+/* =====================================================
+   HISTORY
+===================================================== */
+async function renderHistory() {
+  const listView = document.getElementById('history-list-view');
+  const detailView = document.getElementById('history-detail-view');
+  const header = document.getElementById('history-header');
+
+  listView.style.display = 'block';
+  detailView.style.display = 'none';
+  header.style.display = 'block';
+  listView.innerHTML = '<div class="empty">loading…</div>';
+
+  try {
+    const res = await fetch(`${API}/history`);
+    const { audits } = await res.json();
+    if (!audits.length) {
+      listView.innerHTML = '<div class="empty">no audits yet.</div>';
+      return;
+    }
+
+    listView.innerHTML = `<div class="audit-cards">${audits.map(buildAuditCard).join('')}</div>`;
+
+    listView.querySelectorAll('.audit-card').forEach(card => {
+      card.addEventListener('click', async (e) => {
+        if (e.target.closest('[data-del]')) return;
+        await loadAndShowDetail(card.dataset.id, listView, detailView, header);
+      });
+    });
+
+    listView.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', e => { e.stopPropagation(); confirmDelete(btn.dataset.del); });
+    });
+  } catch (err) {
+    listView.innerHTML = '<div class="empty">failed to load history.</div>';
+  }
+}
+
+function buildAuditCard(a) {
+  const scoreClass = a.score >= 75 ? '' : a.score >= 50 ? 'med' : 'high';
+  const scoreLabel = a.score >= 75 ? 'Good' : a.score >= 50 ? 'Fair' : 'Poor';
+  const metaItems = [
+    a.permissions_count != null && `<div class="audit-meta-item"><span class="label">— Permissions</span><span class="audit-meta-val">${a.permissions_count}</span></div>`,
+    a.sdk_count != null && `<div class="audit-meta-item"><span class="label">— SDKs</span><span class="audit-meta-val">${a.sdk_count}</span></div>`,
+    a.excessive != null && `<div class="audit-meta-item"><span class="label">— Excessive</span><span class="audit-meta-val" style="color:var(--terracotta)">${a.excessive}</span></div>`,
+    `<div class="audit-meta-item"><span class="label">— Date</span><span class="audit-meta-val">${a.date}</span></div>`,
+  ].filter(Boolean).join('');
+
+  return `
+    <div class="audit-card" data-id="${a.app_id}">
+      <div class="audit-card-top">
+        <div>
+          <div class="audit-card-name">${a.app_name}</div>
+          <div class="audit-card-pkg">${a.package}</div>
+        </div>
+        <div class="audit-card-right">
+          <div class="audit-score-num ${scoreClass}">${a.score}<span style="font-family:'Inter',sans-serif;font-weight:300;font-size:14px;opacity:0.5">/100</span></div>
+          <div class="label" style="margin-top:5px">${scoreLabel}</div>
+        </div>
+      </div>
+      <div class="audit-card-meta">${metaItems}</div>
+      <div class="audit-card-actions">
+        <button class="btn-view-report">View full report →</button>
+        <button class="delete-btn" data-del="${a.app_id}">Delete</button>
+      </div>
+    </div>`;
+}
+
+async function loadAndShowDetail(id, listView, detailView, header) {
+  detailView.innerHTML = '<div class="empty" style="padding:80px 0">loading report…</div>';
+  listView.style.display = 'none';
+  detailView.style.display = 'block';
+  header.style.display = 'none';
+
+  try {
+    const res = await fetch(`${API}/report/${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const report = await res.json();
+    currentReport = report;
+
+    detailView.innerHTML = buildDetailHTML(report);
+
+    // Animate bars/rings after paint
+    requestAnimationFrame(() => {
+      setTimeout(() => animateDetailBars(detailView, report), 80);
+    });
+
+    detailView.querySelector('.back-btn').addEventListener('click', () => {
+      detailView.style.display = 'none';
+      listView.style.display = 'block';
+      header.style.display = 'block';
+      currentReport = null;
+    });
+    detailView.querySelector('.btn-dl')?.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = `${API}/report/${report.app_id}/pdf`;
+      a.download = `${report.app_id}_privacy_report.pdf`;
+      a.click();
+      showToast('PDF downloading…');
+    });
+    detailView.querySelector('.btn-cp')?.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
+      showToast('json copied');
+    });
+
+  } catch (err) {
+    detailView.innerHTML = `
+      <div style="padding:40px 0">
+        <div class="empty">failed to load — ${err.message}</div>
+      </div>
+      <button class="back-btn" style="margin:0 0 40px">← Back to Past Audits</button>`;
+    detailView.querySelector('.back-btn').addEventListener('click', () => {
+      detailView.style.display = 'none';
+      listView.style.display = 'block';
+      header.style.display = 'block';
+    });
+  }
+}
+
+function buildOwaspHTML(owasp) {
+  if (!owasp || !owasp.findings || !owasp.findings.length) return '';
+  const topRisks = new Set(owasp.top_risks || []);
+  const findingsMap = {};
+  (owasp.findings || []).forEach(f => { findingsMap[f.id] = f; });
+
+  const gridHTML = ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10'].map(id => {
+    const f = findingsMap[id];
+    const sev = f ? f.severity : '';
+    const cls = f ? (sev === 'medium' ? 'triggered medium' : 'triggered') : '';
+    return `<div class="owasp-cell ${cls}">
+      <div class="ow-id">${id}</div>
+      <div class="ow-label">${(OWASP_LABELS[id]||id).split(' ').slice(0,2).join(' ')}</div>
+    </div>`;
+  }).join('');
+
+  const fHTML = (owasp.findings || []).map(f => {
+    const sc = f.severity === 'high' ? '' : f.severity === 'medium' ? 'medium' : 'low';
+    const ev = (f.evidence||[]).slice(0,4).join(' · ');
+    return `<div class="owasp-finding">
+      <div class="of-header"><span class="of-id ${sc}">${f.id}</span><span class="of-title">${f.title}</span></div>
+      <div class="of-desc">${f.description}</div>
+      ${ev ? `<div class="of-evidence">${ev}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  return `<div style="margin-top:24px;margin-bottom:64px">
+    <div class="card">
+      <span class="label card-eyebrow">— 06 · OWASP Mobile Top 10 (2024)</span>
+      <div class="card-title">Security alignment</div>
+      <div class="owasp-grid" style="margin-bottom:24px">${gridHTML}</div>
+      <div>${fHTML}</div>
+    </div>
+  </div>`;
+}
+
+function buildDetailHTML(r) {
+  const C = 2 * Math.PI * 44;
+  const scoreColor = r.score >= 75 ? '#4A5E2A' : r.score >= 50 ? '#7A7060' : '#B05A38';
+  const barColor = v => v < 50 ? 'var(--terracotta)' : v < 75 ? 'var(--stone)' : 'var(--olive)';
+  const barClass = v => v < 50 ? 'high' : v < 75 ? 'med' : '';
+
+  const barsHTML = [['Permissions', r.breakdown.permissions], ['SDKs', r.breakdown.sdks], ['GDPR', r.breakdown.gdpr]]
+    .map(([lbl, v]) => `
+      <div class="mini-bar">
+        <div class="top"><span class="lbl">${lbl}</span><span class="val">${v}/100</span></div>
+        <div class="track"><div class="fill ${barClass(v)}" style="background:${barColor(v)}" data-pct="${v}"></div></div>
+      </div>`).join('');
+
+  const sdksHTML = (r.sdks || []).map(sdk => {
+    const fillColor = sdk.risk === 'high' ? 'var(--terracotta)' : sdk.risk === 'med' ? 'var(--stone)' : 'var(--olive)';
+    return `
+      <div class="sdk-row">
+        <div class="sdk-name">
+          <span>${sdk.name}${sdk.gdpr_fined ? '<span style="font-size:9px;color:#C07A5A;margin-left:6px">⚠ GDPR</span>' : ''}</span>
+          <span class="ver">${sdk.version || '—'}${sdk.confidence ? `<span style="font-size:9px;color:#4A4A46;margin-left:6px">${sdk.confidence}% conf.</span>` : ''}</span>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar-track"><div class="bar-fill ${sdk.risk}" style="background:${fillColor}" data-pct="${sdk.score}"></div></div>
+          <div class="score">${sdk.score}</div>
+        </div>
+      </div>`;
+  }).join('') || '<div style="color:var(--muted);font-size:12px">No SDKs detected.</div>';
+
+  const permsHTML = (r.permissions || []).map(p => `
+    <div class="perm-row ${p.risk}">
+      <div class="pname">${p.name}</div>
+      <div class="label plbl">— ${p.label}</div>
+    </div>`).join('') || '<div style="color:var(--muted);font-size:12px">No permissions found.</div>';
+
+  const dcHTML = (r.categories || []).map(c => `
+    <div class="dc-row ${c.risk}">
+      <div class="dot"></div>
+      <div class="dc-cat">
+        <div class="label">— ${c.cat}</div>
+        <div class="dc-bar"><div class="f" data-pct="${(c.amount * 100).toFixed(0)}"></div></div>
+        <div class="dc-desc">${c.desc}</div>
+      </div>
+    </div>`).join('') || '<div style="color:var(--muted);font-size:12px">No data categories.</div>';
+
+  const findingsHTML = (r.findings || []).map(f => `
+    <div class="tl-item ${f.kind === 'issue' ? 'issue' : 'positive'}">
+      <div class="t-title">${f.title}</div>
+      <div class="t-desc">${f.desc}</div>
+    </div>`).join('') || '<div style="color:var(--muted);font-size:12px">No findings.</div>';
+
+  const metaItems = [['Version', r.version], ['Target', r.sdkVersion], ['Size', r.size], ['Category', r.category]]
+    .map(([k, v]) => `
+      <div class="meta-item">
+        <div class="label">— ${k}</div>
+        <div class="value">${v || '—'}</div>
+      </div>`).join('');
+
+  return `
+    <div class="history-back">
+      <button class="back-btn">← Past Audits</button>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-dl">Download PDF</button>
+        <button class="btn btn-cp">Copy JSON</button>
+      </div>
+    </div>
+
+    <div class="dash-header">
+      <div>
+        <h1 class="display app-name" style="font-size:52px;margin-bottom:6px">${r.name}</h1>
+        <div class="pkg">${r.pkg}</div>
+        <div class="meta-row">${metaItems}</div>
+      </div>
+      <div class="score-ring-wrap">
+        <div class="label">— Privacy score</div>
+        <div class="score-ring">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="44" fill="none" stroke="#E5E2DC" stroke-width="2"/>
+            <circle class="detail-ring-fill" cx="50" cy="50" r="44" fill="none"
+              stroke="${scoreColor}" stroke-width="2"
+              stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${C.toFixed(2)}"
+              stroke-linecap="butt"/>
+          </svg>
+          <div class="num">${r.score}<small>/100</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <span class="label card-eyebrow">— 01 · Composite</span>
+        <div class="card-title">Score breakdown</div>
+        <div style="margin-top:24px">${barsHTML}</div>
+        <div class="perm-breakdown">
+          <div class="col necessary"><div class="label">— Necessary</div><div class="count">${r.breakdown.necessary}</div></div>
+          <div class="col optional"><div class="label">— Optional</div><div class="count">${r.breakdown.optional}</div></div>
+          <div class="col excessive"><div class="label">— Excessive</div><div class="count">${r.breakdown.excessive}</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <span class="label card-eyebrow">— 02 · Embedded SDKs</span>
+        <div class="card-title">SDK risk scores</div>
+        <div style="margin-top:24px">${sdksHTML}</div>
+      </div>
+      <div class="card">
+        <span class="label card-eyebrow">— 03 · Manifest</span>
+        <div class="card-title">Permissions</div>
+        <div style="margin-top:24px;max-height:420px;overflow-y:auto">${permsHTML}</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <span class="label card-eyebrow">— 04 · Data Inventory</span>
+        <div class="card-title">Data collected by category</div>
+        <div style="margin-top:20px">${dcHTML}</div>
+      </div>
+      <div class="card">
+        <span class="label card-eyebrow">— 05 · Findings</span>
+        <div class="card-title">Key findings</div>
+        <div class="timeline" style="margin-top:24px">${findingsHTML}</div>
+      </div>
+    </div>
+    ${buildOwaspHTML(r.owasp)}`;
+}
+
+function animateDetailBars(container, report) {
+  // Mini breakdown bars
+  container.querySelectorAll('.mini-bar .fill[data-pct]').forEach(el => {
+    el.style.transition = 'width 800ms ease';
+    setTimeout(() => { el.style.width = el.dataset.pct + '%'; }, 50);
+  });
+  // SDK bars
+  container.querySelectorAll('.sdk-row .bar-fill[data-pct]').forEach(el => {
+    el.style.transition = 'width 700ms ease';
+    setTimeout(() => { el.style.width = el.dataset.pct + '%'; }, 150);
+  });
+  // Data category bars
+  container.querySelectorAll('.dc-bar .f[data-pct]').forEach(el => {
+    el.style.transition = 'width 700ms ease';
+    setTimeout(() => { el.style.width = el.dataset.pct + '%'; }, 200);
+  });
+  // Score ring
+  const ring = container.querySelector('.detail-ring-fill');
+  if (ring) {
+    const C = 2 * Math.PI * 44;
+    ring.style.transition = 'stroke-dashoffset 1100ms ease';
+    setTimeout(() => {
+      ring.setAttribute('stroke-dashoffset', (C * (1 - report.score / 100)).toFixed(2));
+    }, 60);
+  }
+}
+
+/* =====================================================
+   DELETE MODAL
+===================================================== */
+let pendingDeleteId = null;
+function confirmDelete(id) {
+  pendingDeleteId = id;
+  document.getElementById('modal').classList.add('show');
+}
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  document.getElementById('modal').classList.remove('show');
+  pendingDeleteId = null;
+});
+document.getElementById('modal-confirm').addEventListener('click', async () => {
+  if (!pendingDeleteId) return;
+  await fetch(`${API}/audit/${pendingDeleteId}`, { method: 'DELETE' });
+  document.getElementById('modal').classList.remove('show');
+  pendingDeleteId = null;
+  renderHistory();
+  showToast('audit deleted');
+});
+
+/* =====================================================
+   EXPORT BAR
+===================================================== */
+document.getElementById('btn-download').addEventListener('click', async () => {
+  if (!currentReport) return;
+  const url = `${API}/report/${currentReport.app_id}/pdf`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${currentReport.app_id}_privacy_report.pdf`;
+  a.click();
+  showToast('PDF report downloading...');
+});
+document.getElementById('btn-copy').addEventListener('click', async () => {
+  if (!currentReport) return;
+  await navigator.clipboard.writeText(JSON.stringify(currentReport, null, 2));
+  showToast('json copied to clipboard');
+});
+
+/* =====================================================
+   TOAST
+===================================================== */
+let toastT;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+</script>
+</body>
+</html>
